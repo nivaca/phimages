@@ -2,7 +2,7 @@ import os
 import re
 import shutil
 import sys
-from pprint import pprint as pp
+
 
 inputfile = "exhibicion-con-collection-builder.md"
 img_dir: str = 'img/'
@@ -116,7 +116,7 @@ def change_names(md_list: list, lesson_name: str) -> bool:
             # perform file rename in img dir
             if not dryrun:
                 rename_file(full_file_name, new_fn)
-        
+
         if not dryrun:
             with open(inputfile, "w", encoding="utf-8") as f:
                 try:
@@ -152,9 +152,6 @@ def main():
 
     if compare_lists(real_list, md_list):
         change_names(md_list, lesson_name)
-
-
-
 
 
 if __name__ == "__main__":
