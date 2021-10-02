@@ -7,23 +7,23 @@ import shutil
 import sys
 import click
 
-# global variables
-makebackup = True
-dryrun = False
-imgdir = "img/"
-extensions: list[str] = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
-inputfile = ""
+# Global variables
+Makebackup = True
+Dryrun = False
+Imgdir = "img/"
+Extensions: list[str] = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
+Inputfile = ""
 
 
 def get_names_from_dir() -> list:
-    listing = os.listdir(imgdir)
+    listing = os.listdir(Imgdir)
     real_list = []
     if not listing:
-        print(f"Error. Empty images dir {imgdir}. Aborting.")
+        print(f"Error. Empty images dir {Imgdir}. Aborting.")
         sys.exit(1)
     for file in listing:
         file_name, file_extension = os.path.splitext(file)
-        if file_extension in extensions:
+        if file_extension in Extensions:
             real_list.append(file)
     return real_list
 
@@ -31,7 +31,7 @@ def get_names_from_dir() -> list:
 def parsefile() -> list:
     """ Reads the .md file and extracts all image file names.
     We will assume that an image appears at most once in the md. """
-    with open(inputfile, "r", encoding="utf-8") as f:
+    with open(Inputfile, "r", encoding="utf-8") as f:
         lines = f.readlines()
     md_list = []  # list of list of filenames and line numbers in md file
     pattern = r"""figure.html +filename=['"](.+?)['"]"""
@@ -45,10 +45,10 @@ def parsefile() -> list:
             fn = match.group(1).strip()
 
             if fn in [i[0] for i in md_list]:
-                print(f"!Error: {fn} is already found in {inputfile}\n"
+                print(f"!Error: {fn} is already found in {Inputfile}\n"
                       f"  If the image needs to appear more than once,\n"
                       f"  please rename each new occurrance both in the document\n"
-                      f"  and in {imgdir}.")
+                      f"  and in {Imgdir}.")
                 sys.exit(1)
 
             # we append a list of file name and line number
@@ -62,7 +62,7 @@ def compare_lists_real_to_md(real_list: list, md_list: list) -> bool:
     for f in real_list:
         if f not in md_list:
             identical = False
-            print(f"Warning: File {f} in {imgdir} is not referenced in {inputfile}. Ignoring.")
+            print(f"Warning: File {f} in {Imgdir} is not referenced in {Inputfile}. Ignoring.")
     return identical
 
 
@@ -71,7 +71,7 @@ def compare_lists_md_to_real(real_list: list, md_list: list) -> bool:
     for f in md_list:
         if f not in real_list:
             identical = False
-            print(f"Error: Entry for {f} in {inputfile} has no corresponding file in {imgdir}")
+            print(f"Error: Entry for {f} in {Inputfile} has no corresponding file in {Imgdir}")
     return identical
 
 
@@ -90,7 +90,7 @@ def compare_lists(real_list: list, full_md_list: list):
 
 
 def createbackup(fn: str):
-    if makebackup:
+    if Makebackup:
         try:
             shutil.copyfile(fn, f"{fn}.bak")
         except OSError:
@@ -98,10 +98,10 @@ def createbackup(fn: str):
 
 
 def change_names(md_list: list, lesson_name: str) -> bool:
-    if not dryrun:
-        if makebackup:
-            createbackup(inputfile)
-        with open(inputfile, "r", encoding="utf-8") as f:
+    if not Dryrun:
+        if Makebackup:
+            createbackup(Inputfile)
+        with open(Inputfile, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
         image_count = len(md_list)
@@ -116,11 +116,11 @@ def change_names(md_list: list, lesson_name: str) -> bool:
             lines[lineno] = newline  # change that line in the list
             print(f"{full_file_name} => {new_fn}")
             # perform file rename in img dir
-            if not dryrun:
-                rename_file(full_file_name, new_fn, imgdir)
+            if not Dryrun:
+                rename_file(full_file_name, new_fn)
 
-        if not dryrun:
-            with open(inputfile, "w", encoding="utf-8") as f:
+        if not Dryrun:
+            with open(Inputfile, "w", encoding="utf-8") as f:
                 try:
                     f.writelines(lines)
                     return True
@@ -130,10 +130,10 @@ def change_names(md_list: list, lesson_name: str) -> bool:
 
 
 def rename_file(old_name: str, new_name: str):
-    if makebackup:
-        createbackup(imgdir + old_name)
+    if Makebackup:
+        createbackup(Imgdir + old_name)
     try:
-        os.rename(imgdir + old_name, imgdir + new_name)
+        os.rename(Imgdir + old_name, Imgdir + new_name)
     except IOError:
         print(f"!Error: could not rename {old_name}.")
         sys.exit(1)
@@ -141,30 +141,43 @@ def rename_file(old_name: str, new_name: str):
 
 @click.command()
 @click.option('--mkbkp', default=True, flag_value=True, help='Backup all files it changes/renames.', show_default=True)
-@click.option('--dry', default=False, flag_value=True, help='Dry run (do not make any changes).', show_default=True)
-@click.option('--images', default=imgdir, help='Image directory', show_default=True)
-@click.argument('mdfile', type=click.Path(exists=True))
-def main(mdfile: str, images: str, dry: bool, mkbpk: bool):
-    mdfn, mdfn_ext = os.path.splitext(mdfile)
+@click.option('--dryrun', default=False, flag_value=True, help='Dry run (do not make any changes).', show_default=True)
+@click.option('--imgdir', default=Imgdir, help='Image directory', show_default=True)
+@click.argument('inputfile', type=click.Path(exists=True))
+def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool):
+    mdfn, mdfn_ext = os.path.splitext(inputfile)
     if mdfn_ext.lower() != 'md':
-        click.secho(f'!Error: {mdfile} must have ".md" extension.', fg='red')
+        click.secho(f'Error: input file ({inputfile}) must have ".md" extension.', fg='red')
         sys.exit(0)
+    else:
+        global Inputfile
+        Inputfile = inputfile
 
+    global Makebackup
+    if not mkbkp:
+        Makebackup = False
+
+    global Imgdir
+    Imgdir = imgdir
+
+    global Dryrun
+    if dryrun:
+        Dryrun = True
 
     # we take the lesson's name from the lesson's base file
-    lesson_name = os.path.splitext(inputfile)[0]
+    lesson_name = os.path.splitext(Inputfile)[0]
 
-    real_list = get_names_from_dir(imgdir)
+    real_list = get_names_from_dir()
 
     # this dict contains both filename and the list of line no.
     # of the file names in the md
-    md_list = parsefile(inputfile, imgdir, inputfile)
+    md_list = parsefile()
 
-    if dry:
+    if Dryrun:
         print("Dry run: no files would be changed")
 
-    if compare_lists(real_list, md_list, imgdir, inputfile):
-        change_names(md_list, lesson_name, imgdir, inputfile)
+    if compare_lists(real_list, md_list):
+        change_names(md_list, lesson_name)
 
 
 if __name__ == "__main__":
