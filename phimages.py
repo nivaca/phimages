@@ -1,22 +1,25 @@
+#!/usr/bin/env python3
+""" Renames images and reformats .md according to PH requirements.
+ Created by Nicolas Vaughan (nivaca@fastmail.com), 2021. """
 import os
 import re
 import shutil
 import sys
+import click
 
-
-inputfile = "exhibicion-con-collection-builder.md"
-img_dir: str = 'img/'
-extensions: list[str] = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
-makebackup: bool = True
-dryrun = False
+# global variables
 makebackup = True
+dryrun = False
+imgdir = "img/"
+extensions: list[str] = ['.png', '.jpg', '.jpeg', '.webp', '.gif']
+inputfile = ""
 
 
 def get_names_from_dir() -> list:
-    listing = os.listdir(img_dir)
+    listing = os.listdir(imgdir)
     real_list = []
     if not listing:
-        print(f"Error. Empty images dir {img_dir}. Aborting.")
+        print(f"Error. Empty images dir {imgdir}. Aborting.")
         sys.exit(1)
     for file in listing:
         file_name, file_extension = os.path.splitext(file)
@@ -25,10 +28,10 @@ def get_names_from_dir() -> list:
     return real_list
 
 
-def parsefile(filename) -> list:
+def parsefile() -> list:
     """ Reads the .md file and extracts all image file names.
     We will assume that an image appears at most once in the md. """
-    with open(filename, "r", encoding="utf-8") as f:
+    with open(inputfile, "r", encoding="utf-8") as f:
         lines = f.readlines()
     md_list = []  # list of list of filenames and line numbers in md file
     pattern = r"""figure.html +filename=['"](.+?)['"]"""
@@ -45,7 +48,7 @@ def parsefile(filename) -> list:
                 print(f"!Error: {fn} is already found in {inputfile}\n"
                       f"  If the image needs to appear more than once,\n"
                       f"  please rename each new occurrance both in the document\n"
-                      f"  and in {img_dir}.")
+                      f"  and in {imgdir}.")
                 sys.exit(1)
 
             # we append a list of file name and line number
@@ -59,7 +62,7 @@ def compare_lists_real_to_md(real_list: list, md_list: list) -> bool:
     for f in real_list:
         if f not in md_list:
             identical = False
-            print(f"Warning: File {f} in {img_dir} is not referenced in {inputfile}. Ignoring.")
+            print(f"Warning: File {f} in {imgdir} is not referenced in {inputfile}. Ignoring.")
     return identical
 
 
@@ -68,7 +71,7 @@ def compare_lists_md_to_real(real_list: list, md_list: list) -> bool:
     for f in md_list:
         if f not in real_list:
             identical = False
-            print(f"Error: Entry for {f} in {inputfile} has no corresponding file in {img_dir}")
+            print(f"Error: Entry for {f} in {inputfile} has no corresponding file in {imgdir}")
     return identical
 
 
@@ -94,7 +97,6 @@ def createbackup(fn: str):
             print(f"Error: Could not backup {fn}")
 
 
-# nombre-leccion1.jpg
 def change_names(md_list: list, lesson_name: str) -> bool:
     if not dryrun:
         if makebackup:
@@ -115,7 +117,7 @@ def change_names(md_list: list, lesson_name: str) -> bool:
             print(f"{full_file_name} => {new_fn}")
             # perform file rename in img dir
             if not dryrun:
-                rename_file(full_file_name, new_fn)
+                rename_file(full_file_name, new_fn, imgdir)
 
         if not dryrun:
             with open(inputfile, "w", encoding="utf-8") as f:
@@ -127,31 +129,42 @@ def change_names(md_list: list, lesson_name: str) -> bool:
                     sys.exit(1)
 
 
-def rename_file(old_name: str, new_name) -> bool:
+def rename_file(old_name: str, new_name: str):
     if makebackup:
-        createbackup(img_dir + old_name)
+        createbackup(imgdir + old_name)
     try:
-        os.rename(img_dir + old_name, img_dir + new_name)
+        os.rename(imgdir + old_name, imgdir + new_name)
     except IOError:
         print(f"!Error: could not rename {old_name}.")
         sys.exit(1)
 
 
-def main():
+@click.command()
+@click.option('--mkbkp', default=True, flag_value=True, help='Backup all files it changes/renames.', show_default=True)
+@click.option('--dry', default=False, flag_value=True, help='Dry run (do not make any changes).', show_default=True)
+@click.option('--images', default=imgdir, help='Image directory', show_default=True)
+@click.argument('mdfile', type=click.Path(exists=True))
+def main(mdfile: str, images: str, dry: bool, mkbpk: bool):
+    mdfn, mdfn_ext = os.path.splitext(mdfile)
+    if mdfn_ext.lower() != 'md':
+        click.secho(f'!Error: {mdfile} must have ".md" extension.', fg='red')
+        sys.exit(0)
+
+
     # we take the lesson's name from the lesson's base file
     lesson_name = os.path.splitext(inputfile)[0]
 
-    real_list = get_names_from_dir()
+    real_list = get_names_from_dir(imgdir)
 
     # this dict contains both filename and the list of line no.
     # of the file names in the md
-    md_list = parsefile(inputfile)
+    md_list = parsefile(inputfile, imgdir, inputfile)
 
-    if dryrun:
+    if dry:
         print("Dry run: no files would be changed")
 
-    if compare_lists(real_list, md_list):
-        change_names(md_list, lesson_name)
+    if compare_lists(real_list, md_list, imgdir, inputfile):
+        change_names(md_list, lesson_name, imgdir, inputfile)
 
 
 if __name__ == "__main__":
