@@ -6,7 +6,6 @@ import os
 import re
 import shutil
 import sys
-from pprint import pprint as pp
 
 
 def get_names_from_dir(params: dict) -> list:
@@ -38,11 +37,15 @@ def parsefile(params: dict) -> list:
             # fn is the matched filename
             fn = match.group(1).strip()
 
+            # ignore urls
+            if re.search(r"https?:", fn):
+                continue
+
             if fn in [i[0] for i in md_list]:
-                click.secho(f"""!Error: {fn} is already found in {params["inputfile"]}\n
-                            If the image needs to appear more than once,\n
-                            please rename each new occurrance both in the document\n
-                            and in {params["imgdir"]}.""", fg='red')
+                click.secho(f'Error: {fn} is already found in {params["inputfile"]}\n'
+                            f'If the image needs to appear more than once,\n'
+                            f'please rename each new occurrance both in the document\n'
+                            f'and in {params["imgdir"]}.', fg='red')
                 sys.exit(1)
 
             # we append a list of file name and line number
@@ -54,20 +57,20 @@ def parsefile(params: dict) -> list:
 def compare_lists_real_to_md(params: dict) -> bool:
     identical = True
     for f in params["real_list"]:
-        if f not in params["full_md_list"]:
+        if f not in params["md_list"]:
             identical = False
-            click.secho(f"""Warning: File {f} in {params["imgdir"]} is not referenced in {params["inputfile"]}.\n
-            It will be ignored but you should delete it if not needed.""", fg='yellow')
+            click.secho(f'Warning: File {f} in {params["imgdir"]} is not referenced in {params["inputfile"]}.\n'
+                        f'It will be ignored but you should delete it if not needed.', fg='yellow')
     return identical
 
 
 def compare_lists_md_to_real(params: dict) -> bool:
     identical = True
-    for f in params["full_md_list"]:
+    for f in params["md_list"]:
         if f not in params["real_list"]:
             identical = False
-            click.secho(f"""Error: Entry for {f} in {params["inputfile"]} 
-            has no corresponding file in {params["imgdir"]}""", fg='red')
+            click.secho(f'Error: Reference in {params["inputfile"]} for {f} '
+                        f'has no corresponding file in images directory.', fg='red')
     return identical
 
 
@@ -102,7 +105,7 @@ def change_names(params: dict) -> bool:
 
         image_count = len(params["full_md_list"])
         for i in range(image_count):
-            full_fname, ln = params["md_list"][i]
+            full_fname, ln = params["full_md_list"][i]
             fn, fn_ext = os.path.splitext(full_fname)
             # format: lesson-name01.ext, lesson-name02.ext, etc.
             new_fname = params["lesson_name"] + str(i + 1).zfill(2) + fn_ext
@@ -125,13 +128,13 @@ def change_names(params: dict) -> bool:
                     sys.exit(1)
 
 
-def rename_file(full_fname: str, new_fname: str, params: dict):
+def rename_file(old_fname: str, new_fname: str, params: dict):
     if params["mkbkp"]:
-        createbackup(params["imgdir"] + full_fname)
+        createbackup(params["imgdir"] + old_fname)
     try:
-        os.rename(params["imgdir"] + full_fname, params["imgdir"] + new_fname)
+        os.rename(params["imgdir"] + old_fname, params["imgdir"] + new_fname)
     except IOError:
-        click.secho(f"Error: could not rename {full_fname}.", fg='red')
+        click.secho(f"Error: could not rename {old_fname}.", fg='red')
         sys.exit(1)
 
 
@@ -145,13 +148,11 @@ def perform_tests(params: dict) -> bool:
 
 
 def check_names(params: dict) -> bool:
-    filelist = [i[0] for i in params["full_md_list"]]
     pattern = params["lesson_name"] + r"\d{1,3}\.\w{3,4}"
-    print(f"{pattern=}")
     result = True
     errors = 0
     # format: lesson-name01.ext, lesson-name02.ext, etc.
-    for fn in filelist:
+    for fn in params["md_list"]:
         if not re.match(pattern, fn):
             egfname = params["lesson_name"] + "03.png"
             click.secho(f"Error: {fn} does not comply with pattern required (e.g. {egfname})",
