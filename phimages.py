@@ -7,6 +7,8 @@ import re
 import shutil
 import sys
 
+VERSION = "0.1 (2021-10-04)"
+
 
 def get_names_from_dir(params: dict) -> list:
     listing = os.listdir(params["imgdir"])
@@ -21,13 +23,46 @@ def get_names_from_dir(params: dict) -> list:
     return real_list
 
 
+def detect_image_inclusion_pattern(params: dict, lines: list) -> str:
+    possible_patterns = [r"""{% include figure.html +filename=['"](.+?)['"]""",
+                         r"""<img .*?src=['"](.+?)['"]"""]
+    plist = []
+    for pattern in possible_patterns:
+        cpattern = re.compile(pattern)
+        for line in lines:
+            match = re.search(cpattern, line)
+            if match and pattern not in plist:
+                plist.append(pattern)
+
+    count = len(plist)
+    if count == 0:
+        click.secho(f'Error: No image references found in {params["baseinputfile"]}\n'
+                    f'Nothing to do here.', fg='red')
+        sys.exit(1)
+    elif count > 1:
+        click.secho(f'Error: Found more than one image reference pattern in '
+                    f'{(params["baseinputfile"])}:', fg='red')
+        for pat in plist:
+            click.secho(f"    {pat}", fg='red')
+        click.secho(f'You must choose only *one* of these patterns, '
+                    f'although the recommended one in PH is:', fg='red')
+        click.secho("""  {% include figure.html filename="<image-filename.ext>" """
+                    """caption="<image caption>" %}""", fg='red')
+        sys.exit(1)
+    else:
+        return plist[0]
+
+
 def parsefile(params: dict) -> list:
     """ Reads the .md file and extracts all image file names.
     We will assume that an image appears at most once in the md. """
     with open(params["inputfile"], "r", encoding="utf-8") as f:
         lines = f.readlines()
+
+    pattern = detect_image_inclusion_pattern(params, lines)
+
     md_list = []  # list of list of filenames and line numbers in md file
-    pattern = r"""figure.html +filename=['"](.+?)['"]"""
+    # pattern = r"""figure.html +filename=['"](.+?)['"]"""
 
     cpattern = re.compile(pattern)
     ln = 1
@@ -42,7 +77,7 @@ def parsefile(params: dict) -> list:
                 continue
 
             if fn in [i[0] for i in md_list]:
-                click.secho(f'Error: {fn} is already found in {params["inputfile"]}\n'
+                click.secho(f'Error: {fn} is already found in {params["baseinputfile"]}\n'
                             f'If the image needs to appear more than once,\n'
                             f'please rename each new occurrance both in the document\n'
                             f'and in {params["imgdir"]}.', fg='red')
@@ -51,6 +86,10 @@ def parsefile(params: dict) -> list:
             # we append a list of file name and line number
             md_list.append([fn, str(ln)])
         ln += 1
+    if len(md_list) == 0:
+        click.secho(f'Error: No image references found in {params["baseinputfile"]}\n'
+                    f'Nothing to do here.', fg='red')
+        sys.exit(1)
     return md_list
 
 
@@ -59,8 +98,10 @@ def compare_lists_real_to_md(params: dict) -> bool:
     for f in params["real_list"]:
         if f not in params["md_list"]:
             identical = False
-            click.secho(f'Warning: File {f} in {params["imgdir"]} is not referenced in {params["inputfile"]}.\n'
-                        f'It will be ignored but you should delete it if not needed.', fg='yellow')
+            click.secho(f'Warning: File {f} in {params["imgdir"]} is not referenced '
+                        f'in {params["baseinputfile"]}.\n'
+                        f'  It will be ignored, but you should delete it '
+                        f'if it is not really needed.', fg='yellow')
     return identical
 
 
@@ -69,7 +110,7 @@ def compare_lists_md_to_real(params: dict) -> bool:
     for f in params["md_list"]:
         if f not in params["real_list"]:
             identical = False
-            click.secho(f'Error: Reference in {params["inputfile"]} for {f} '
+            click.secho(f'Error: Reference in {params["baseinputfile"]} for {f} '
                         f'has no corresponding file in images directory.', fg='red')
     return identical
 
@@ -168,17 +209,58 @@ def check_names(params: dict) -> bool:
     return result
 
 
+def list_images(params: dict):
+    params["md_list"].sort()
+    images = params["md_list"]
+    count = len(images)
+    if count > 1:
+        nounending = "s"
+    else:
+        nounending = ""
+    click.secho(f'{count} image reference{nounending} found in {params["baseinputfile"]}:', fg='blue')
+    for i in images:
+        print(f'  {os.path.basename(i)}')
+
+    params["real_list"].sort()
+    images = params["real_list"]
+    count = len(images)
+    if count > 1:
+        nounending = "s"
+    else:
+        nounending = ""
+    click.secho(f'{count} image{nounending} found in {params["imgdir"]}:', fg='blue')
+    for i in params["real_list"]:
+        print(f'  {os.path.basename(i)}')
+
+
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # +                               main()                               +
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 @click.command()
+@click.option('--listimgs', default=False, flag_value=True,
+              help='Lists all image references in the document and in the image directory.', show_default=True)
+@click.option('--version', default=False, flag_value=True, help='Displays the script version.', show_default=False)
 @click.option('--checkonly', default=False, flag_value=True, help='Only check the files.', show_default=True)
 @click.option('--mkbkp', default=True, flag_value=True, help='Backup all files it changes/renames.', show_default=True)
 @click.option('--dryrun', default=False, flag_value=True, help='Dry run (do not make any changes).', show_default=True)
 @click.option('--imgdir', default='img/', help='Image directory', show_default=True)
-@click.argument('inputfile', type=click.Path(exists=True))
-def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool):
+# @click.argument('inputfile', type=click.Path(exists=True))
+@click.argument('inputfile', default='')
+def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool, version: bool, listimgs: bool):
+    if version:
+        click.secho(f"phimages.ph version {VERSION}.\n"
+                    f"Created by Nicolas Vaughan (https://github.com/nivaca),\n"
+                    f"under a CC BY-NC-SA 4.0 license.\n"
+                    f"See https://creativecommons.org/licenses/by-nc-sa/4.0/", fg='blue')
+        sys.exit(0)
+
+    if not inputfile:
+        click.secho(f"Usage: phimages.py [OPTIONS] INPUTFILE\n"
+                    f"Try 'phimages.py --help' for help.", fg='blue')
+        click.secho(f"Error: Missing argument 'INPUTFILE'.", fg='red')
+        sys.exit(1)
+
     mdfn, mdfn_ext = os.path.splitext(inputfile)
     if mdfn_ext.lower() != '.md':
         click.secho(f'Error: input file ({inputfile}) must have ".md" extension.', fg='red')
@@ -186,12 +268,9 @@ def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool
 
     params = {
         "inputfile": inputfile,
-        # "real_list": real_list,
-        # "full_md_list": full_md_list,
-        # "md_list": md_list,
+        "baseinputfile": os.path.basename(inputfile),
         "lesson_name": os.path.splitext(inputfile)[0],
-        # "extensions": extensions,
-        "extensions": ['.png', '.jpg', '.jpeg', '.webp', '.gif'],
+        "extensions": ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif'],
         "imgdir": imgdir,
         "checkonly": checkonly,
         "dryrun": dryrun,
@@ -210,6 +289,10 @@ def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool
     # of the file names in the md
     params["full_md_list"] = parsefile(params)
     params["md_list"] = [i[0] for i in params["full_md_list"]]
+
+    if listimgs:
+        list_images(params)
+        sys.exit(0)
 
     if perform_tests(params):
         click.secho(f"Image files in {imgdir} and image links in {inputfile} seem to match.", fg="blue")
