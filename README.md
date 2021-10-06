@@ -52,3 +52,8 @@ python3 ~/dev/Python/phimages/phimages.py fichas-lectura-cod-imagenes.md --imgdi
 ## Bugs etc.
 
 Please create a GitHub [issue](https://github.com/nivaca/phimages/issues), including the script version. (You can look it up with the `--version` option.)
+
+
+## Version history
+
+- 0.1 (2021-10-04): first release
