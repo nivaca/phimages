@@ -32,20 +32,23 @@ python3 phimages.py <lessonfile.md> --imgdir <imagesdirectory/>
 Available options are:
 
 ```
---checkonly    Only check the files.  [default: False]
---mkbkp        Backup all files it changes/renames.  [default: True]
---dryrun       Dry run (do not make any changes).  [default: False]
---imgdir TEXT  Image directory  [default: img/]
---help         Show this message and exit.
+  --listimages   Lists all image references in the document and all images in
+                 the image directory.
+  --version      Displays the script version.
+  --checkonly    Only check the files.
+  --mkbkp        Backup all files it changes/renames.  [default: True]
+  --dryrun       Dry run (do not make any changes).  [default: False]
+  --imgdir TEXT  Image directory  [default: img/]
+  --help         Show this message and exit.
 ```
 
 For instance:
 
 ```sh
-python2 ~/dev/Python/phimages/phimages.py fichas-lectura-cod-imagenes.md --imgdir ~/editions/PH/ph-submissions/images/fichas-zotero --dryrun
+python3 ~/dev/Python/phimages/phimages.py fichas-lectura-cod-imagenes.md --imgdir ~/editions/PH/ph-submissions/images/fichas-zotero --dryrun
 ```
 
 
 ## Bugs etc.
 
-Please create a GitHub [issue](https://github.com/nivaca/phimages/issues), noting the
+Please create a GitHub [issue](https://github.com/nivaca/phimages/issues), including the script version. (You can look it up with the `--version` option.)

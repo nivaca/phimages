@@ -98,10 +98,9 @@ def compare_lists_real_to_md(params: dict) -> bool:
     for f in params["real_list"]:
         if f not in params["md_list"]:
             identical = False
-            click.secho(f'Warning: File {f} in {params["imgdir"]} is not referenced '
+            click.secho(f'Error: File {f} in {params["imgdir"]} is not referenced '
                         f'in {params["baseinputfile"]}.\n'
-                        f'  It will be ignored, but you should delete it '
-                        f'if it is not really needed.', fg='yellow')
+                        f'Please delete it manually and/or check the document.', fg='red')
     return identical
 
 
@@ -115,15 +114,10 @@ def compare_lists_md_to_real(params: dict) -> bool:
     return identical
 
 
-def compare_lists(params: dict):
-    if not compare_lists_md_to_real(params):
-        click.secho("Aborting", fg='red')
+def compare_lists(params: dict) -> bool:
+    if not compare_lists_md_to_real(params) or not compare_lists_real_to_md(params):
+        click.secho("Aborting.", fg='red')
         sys.exit(1)
-    elif not compare_lists_real_to_md(params):
-        ans = input("Continue? [Y/n] ").lower()
-        if ans not in ["y", ""]:
-            sys.exit(0)
-        return True
     else:
         return True
 
@@ -179,15 +173,6 @@ def rename_file(old_fname: str, new_fname: str, params: dict):
         sys.exit(1)
 
 
-def perform_tests(params: dict) -> bool:
-    rescomp = compare_lists(params)
-    if params["checkonly"]:
-        return rescomp and check_names(params)
-    else:
-        # we don't need to check names only when renaming etc.
-        return rescomp
-
-
 def check_names(params: dict) -> bool:
     pattern = params["lesson_name"] + r"\d{1,3}\.\w{3,4}"
     result = True
@@ -196,7 +181,7 @@ def check_names(params: dict) -> bool:
     for fn in params["md_list"]:
         if not re.match(pattern, fn):
             egfname = params["lesson_name"] + "03.png"
-            click.secho(f"Error: {fn} does not comply with pattern required (e.g. {egfname})",
+            click.secho(f"Error: {fn} does not comply with required pattern\n e.g. {egfname})",
                         fg='red')
             errors += 1
             result = False
@@ -228,6 +213,7 @@ def list_images(params: dict):
         nounending = "s"
     else:
         nounending = ""
+    print()
     click.secho(f'{count} image{nounending} found in {params["imgdir"]}:', fg='blue')
     for i in params["real_list"]:
         print(f'  {os.path.basename(i)}')
@@ -238,16 +224,17 @@ def list_images(params: dict):
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 @click.command()
-@click.option('--listimgs', default=False, flag_value=True,
-              help='Lists all image references in the document and in the image directory.', show_default=True)
+@click.option('--listimages', default=False, flag_value=True,
+              help='Lists all image references in the document and all images in the image directory.',
+              show_default=False)
 @click.option('--version', default=False, flag_value=True, help='Displays the script version.', show_default=False)
-@click.option('--checkonly', default=False, flag_value=True, help='Only check the files.', show_default=True)
+@click.option('--checkonly', default=False, flag_value=True, help='Only check the files.', show_default=False)
 @click.option('--mkbkp', default=True, flag_value=True, help='Backup all files it changes/renames.', show_default=True)
 @click.option('--dryrun', default=False, flag_value=True, help='Dry run (do not make any changes).', show_default=True)
 @click.option('--imgdir', default='img/', help='Image directory', show_default=True)
 # @click.argument('inputfile', type=click.Path(exists=True))
 @click.argument('inputfile', default='')
-def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool, version: bool, listimgs: bool):
+def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool, version: bool, listimages: bool):
     if version:
         click.secho(f"phimages.ph version {VERSION}.\n"
                     f"Created by Nicolas Vaughan (https://github.com/nivaca),\n"
@@ -266,10 +253,16 @@ def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool
         click.secho(f'Error: input file ({inputfile}) must have ".md" extension.', fg='red')
         sys.exit(0)
 
+    baseinputfile = os.path.basename(inputfile)  # remove path
+    lesson_name = os.path.splitext(baseinputfile)[0]  # remove extension
+    if re.match(r"\d", lesson_name[-1]):
+        # if lesson name ends in digit, add a dash
+        lesson_name += '-'
+
     params = {
         "inputfile": inputfile,
-        "baseinputfile": os.path.basename(inputfile),
-        "lesson_name": os.path.splitext(inputfile)[0],
+        "baseinputfile": baseinputfile,
+        "lesson_name": lesson_name,
         "extensions": ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif'],
         "imgdir": imgdir,
         "checkonly": checkonly,
@@ -290,13 +283,16 @@ def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool
     params["full_md_list"] = parsefile(params)
     params["md_list"] = [i[0] for i in params["full_md_list"]]
 
-    if listimgs:
+    if listimages:
         list_images(params)
         sys.exit(0)
 
-    if perform_tests(params):
-        click.secho(f"Image files in {imgdir} and image links in {inputfile} seem to match.", fg="blue")
-        if not checkonly:
+    if compare_lists(params) and not check_names(params):
+        print()
+        click.secho(f'Image references in {baseinputfile} and images in {imgdir} match', fg='blue')
+        click.secho('However, they do not follow the name conventions stipulated by PH.', fg='red')
+        answer = input('Rename them? (y/N)').lower()
+        if answer not in ['y']:
             change_names(params)
 
 
