@@ -59,7 +59,7 @@ python3 ~/dev/Python/phimages/phimages.py fichas-lectura-cod-imagenes.md --imgdi
 
 ## License
 
-Released under [CC-BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/) license.
+Released under [CC-BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/) license.
 
 
 ## Bugs etc.
