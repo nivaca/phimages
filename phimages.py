@@ -177,7 +177,7 @@ def preform_rename(params: dict) -> bool:
                     rename_file(full_fname, new_fname, params)
 
         if not params["dryrun"]:
-            with open(params["inputfile"], "w", encoding="utf-8") as f:
+            with open(params["inputfile"], 'w', encoding="utf-8") as f:
                 try:
                     f.writelines(lines)
                     return True
