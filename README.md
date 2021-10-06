@@ -7,18 +7,27 @@ A Python script which checks if the images referred to in a lesson document (.md
 - [Python](https://www.python.org/) 3.6+
 - [Click](https://click.palletsprojects.com) 8.0+
 
-Click is required for the CLI. To install it you can either:
+Run:
+```
+pip install -r requirements.txt
+```
+
+to install all package requirements.
+
+Click is needed for the CLI. To install it you can either:
 
 - use PIP: `pip install --user click`
 - use your system's package manager (e.g. on Arch Linux you can run: `sudo pacman -S python-click`)
 
 For more details see [here](https://click.palletsprojects.com/en/8.0.x/quickstart/)
 
+
 ## Installation
 
-Simply clone this repo (`git clone https://github.com/nivaca/phimages`) and symlink to your user's bin directory (or to anywhere your PATH variable points to).
+Clone this repo (`git clone https://github.com/nivaca/phimages`) and symlink to your user's bin directory (or to anywhere your PATH variable points to).
 
-You can also [download the script file](https://raw.githubusercontent.com/nivaca/phimages/main/phimages.py) directly from GitHub, as it's a standalone program.
+You can also [download the latest release](https://github.com/nivaca/phimages/releases) directly from GitHub and unzip it. 
+Place it wherever you want to access it.
 
 
 ## Usage
@@ -47,6 +56,10 @@ For instance:
 ```sh
 python3 ~/dev/Python/phimages/phimages.py fichas-lectura-cod-imagenes.md --imgdir ~/editions/PH/ph-submissions/images/fichas-zotero --dryrun
 ```
+
+## License
+
+Released under [CC-BY-NC-SA](https://creativecommons.org/licenses/by-nc-sa/4.0/) license.
 
 
 ## Bugs etc.
