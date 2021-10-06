@@ -7,14 +7,14 @@ import re
 import shutil
 import sys
 
-VERSION = "0.1 (2021-10-04)"
+VERSION = "0.2 (2021-10-06)"
 
 
 def get_names_from_dir(params: dict) -> list:
     listing = os.listdir(params["imgdir"])
     real_list = []
     if not listing:
-        click.secho(f'Error. Empty images dir {params["imgdir"]}. Aborting.', fg='red')
+        click.secho(f'Error. Empty images directory contains no files.\nAborting.', fg='red')
         sys.exit(1)
     for file in listing:
         file_name, file_extension = os.path.splitext(file)
@@ -80,7 +80,7 @@ def parsefile(params: dict) -> list:
                 click.secho(f'Error: {fn} is already found in {params["baseinputfile"]}\n'
                             f'If the image needs to appear more than once,\n'
                             f'please rename each new occurrance both in the document\n'
-                            f'and in {params["imgdir"]}.', fg='red')
+                            f'and in {params["normimgdir"]}.', fg='red')
                 sys.exit(1)
 
             # we append a list of file name and line number
@@ -98,9 +98,8 @@ def compare_lists_real_to_md(params: dict) -> bool:
     for f in params["real_list"]:
         if f not in params["md_list"]:
             identical = False
-            click.secho(f'Error: File {f} in {params["imgdir"]} is not referenced '
-                        f'in {params["baseinputfile"]}.\n'
-                        f'Please delete it manually and/or check the document.', fg='red')
+            click.secho(f'  Error: File ‘{f}’ in images directory '
+                        f'is not referenced in lesson document.', fg='red')
     return identical
 
 
@@ -109,17 +108,39 @@ def compare_lists_md_to_real(params: dict) -> bool:
     for f in params["md_list"]:
         if f not in params["real_list"]:
             identical = False
-            click.secho(f'Error: Reference in {params["baseinputfile"]} for {f} '
-                        f'has no corresponding file in images directory.', fg='red')
+            click.secho(f'  Error: Reference to ‘{f}’ has no corresponding file in images directory.', fg='red')
     return identical
 
 
 def compare_lists(params: dict) -> bool:
-    if not compare_lists_md_to_real(params) or not compare_lists_real_to_md(params):
-        click.secho("Aborting.", fg='red')
-        sys.exit(1)
+    click.secho(f'Comparing image references in lesson document with respect to '
+                f'image files found in the image directory...', fg='blue')
+    md_to_real = compare_lists_md_to_real(params)
+    if md_to_real:
+        click.secho(f'  All image references in lesson document '
+                    f'correspond to files in the image directory.', fg='green')
     else:
+        if not params["checkonly"]:
+            click.secho("  Aborting.", fg='red')
+            sys.exit(1)
+
+    print()
+    click.secho(f'Comparing image files inside images directory '
+                f'with respect to image references in lesson document...',
+                fg='blue')
+    real_to_md = compare_lists_real_to_md(params)
+    if real_to_md:
+        click.secho(f'  All files in the image directory are referenced '
+                    f'in {params["baseinputfile"]}.', fg='green')
+    else:
+        if not params["checkonly"]:
+            click.secho("  Aborting.", fg='red')
+            sys.exit(1)
+
+    if md_to_real and real_to_md:
         return True
+    else:
+        sys.exit(1)
 
 
 def createbackup(fname: str) -> bool:
@@ -131,7 +152,7 @@ def createbackup(fname: str) -> bool:
         return False
 
 
-def change_names(params: dict) -> bool:
+def preform_rename(params: dict) -> bool:
     if not params["dryrun"]:
         if params["mkbkp"]:
             createbackup(params["inputfile"])
@@ -148,10 +169,12 @@ def change_names(params: dict) -> bool:
             oldline = lines[lineno]
             newline = re.sub(rf"{full_fname}", rf"{new_fname}", oldline)
             lines[lineno] = newline  # change that line in the list
-            click.secho(f"{full_fname} => {new_fname}", fg='blue')
-            # perform file rename in img dir
-            if not params["dryrun"]:
-                rename_file(full_fname, new_fname, params)
+            # only change if different
+            if full_fname != new_fname:
+                click.secho(f"{full_fname} => {new_fname}", fg='blue')
+                # perform file rename in img dir
+                if not params["dryrun"]:
+                    rename_file(full_fname, new_fname, params)
 
         if not params["dryrun"]:
             with open(params["inputfile"], "w", encoding="utf-8") as f:
@@ -159,7 +182,7 @@ def change_names(params: dict) -> bool:
                     f.writelines(lines)
                     return True
                 except IOError:
-                    click.secho("!Error: could not write new file.", fg='red')
+                    click.secho("Error: could not write new file.", fg='red')
                     sys.exit(1)
 
 
@@ -173,16 +196,21 @@ def rename_file(old_fname: str, new_fname: str, params: dict):
         sys.exit(1)
 
 
-def check_names(params: dict) -> bool:
+def check_reference_names(params: dict) -> bool:
+    print()
     pattern = params["lesson_name"] + r"\d{1,3}\.\w{3,4}"
+    click.secho(f"Checking file name references in lesson document...", fg='blue')
     result = True
     errors = 0
     # format: lesson-name01.ext, lesson-name02.ext, etc.
     for fn in params["md_list"]:
         if not re.match(pattern, fn):
             egfname = params["lesson_name"] + "03.png"
-            click.secho(f"Error: {fn} does not comply with required pattern\n e.g. {egfname})",
-                        fg='red')
+            click.secho(f"  Reference to ‘{fn}’ in lesson document "
+                        f"does *not* comply with required pattern.", fg='red')
+            if params["checkonly"]:
+                click.secho("  See https://programminghistorian.org/en/author-guidelines.html#figures-and-images "
+                            "for more information.", fg='red')
             errors += 1
             result = False
     if not result:
@@ -190,7 +218,36 @@ def check_names(params: dict) -> bool:
             err_noun = "errors"
         else:
             err_noun = "error"
-        click.secho(f"{errors} {err_noun} found in file naming pattern.", fg='red')
+        click.secho(f"  {errors} {err_noun} found in file naming pattern.", fg='red')
+    if result:
+        click.secho(f"  OK!", fg='green')
+    return result
+
+
+def check_real_filenames(params: dict) -> bool:
+    print()
+    pattern = params["lesson_name"] + r"\d{1,3}\.\w{3,4}"
+    click.secho(f"Checking file name patterns in images directory...", fg='blue')
+    result = True
+    errors = 0
+    # format: lesson-name01.ext, lesson-name02.ext, etc.
+    for fn in params["real_list"]:
+        if not re.match(pattern, fn):
+            egfname = params["lesson_name"] + "03.png"
+            click.secho(f"  File ‘{fn}’ does not comply with required pattern.", fg='red')
+            if params["checkonly"]:
+                click.secho("  See https://programminghistorian.org/en/author-guidelines.html#figures-and-images "
+                            "for more information.", fg='red')
+            errors += 1
+            result = False
+    if not result:
+        if errors > 1:
+            err_noun = "errors"
+        else:
+            err_noun = "error"
+        click.secho(f"  {errors} {err_noun} found in file naming pattern.", fg='red')
+    if result:
+        click.secho(f"  OK!", fg='green')
     return result
 
 
@@ -202,7 +259,7 @@ def list_images(params: dict):
         nounending = "s"
     else:
         nounending = ""
-    click.secho(f'{count} image reference{nounending} found in {params["baseinputfile"]}:', fg='blue')
+    click.secho(f'{count} image reference{nounending} found in ‘{params["baseinputfile"]}’:', fg='blue')
     for i in images:
         print(f'  {os.path.basename(i)}')
 
@@ -214,7 +271,7 @@ def list_images(params: dict):
     else:
         nounending = ""
     print()
-    click.secho(f'{count} image{nounending} found in {params["imgdir"]}:', fg='blue')
+    click.secho(f'{count} image{nounending} found in ‘{params["normimgdir"]}’:', fg='blue')
     for i in params["real_list"]:
         print(f'  {os.path.basename(i)}')
 
@@ -248,9 +305,12 @@ def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool
         click.secho(f"Error: Missing argument 'INPUTFILE'.", fg='red')
         sys.exit(1)
 
+    imgdir = os.path.normpath(imgdir) + '/'  # make sure path ends with '/'
+    normimgdir = os.path.basename(imgdir)
+
     mdfn, mdfn_ext = os.path.splitext(inputfile)
     if mdfn_ext.lower() != '.md':
-        click.secho(f'Error: input file ({inputfile}) must have ".md" extension.', fg='red')
+        click.secho(f'Error: input file (‘{inputfile}’) must have ‘.md’ extension.', fg='red')
         sys.exit(0)
 
     baseinputfile = os.path.basename(inputfile)  # remove path
@@ -265,16 +325,17 @@ def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool
         "lesson_name": lesson_name,
         "extensions": ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif'],
         "imgdir": imgdir,
+        "normimgdir": normimgdir,
         "checkonly": checkonly,
         "dryrun": dryrun,
         "mkbkp": mkbkp,
     }
 
     if dryrun:
-        click.secho("Dry run: no files will be changed", fg='blue')
+        click.secho("Dry run: no files will be changed...", fg='yellow')
 
     if checkonly:
-        click.secho("Performing tests only.", fg='blue')
+        click.secho("Performing tests only...", fg='yellow')
 
     params["real_list"] = get_names_from_dir(params)
 
@@ -287,13 +348,22 @@ def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool
         list_images(params)
         sys.exit(0)
 
-    if compare_lists(params) and not check_names(params):
+    res_chk_realnames = check_real_filenames(params)
+    res_chk_refnames = check_reference_names(params)
+
+    print()
+    if compare_lists(params) and (not res_chk_realnames or not res_chk_refnames):
         print()
-        click.secho(f'Image references in {baseinputfile} and images in {imgdir} match', fg='blue')
-        click.secho('However, they do not follow the name conventions stipulated by PH.', fg='red')
-        answer = input('Rename them? (y/N)').lower()
-        if answer not in ['y']:
-            change_names(params)
+        click.secho(f'Image references in lesson document and files in images directory match', fg='blue')
+        click.secho('  However, they do *not* comply with the naming conventions stipulated by PH.', fg='red')
+        click.secho('  We will rename them now.', fg='red')
+        answer = input('  Do you want to proceed? (y/N) ').lower()
+        if answer in ['y']:
+            print()
+            click.secho(f'Renaming files/references...', fg='blue')
+            preform_rename(params)
+        else:
+            click.secho('Aborting.', fg='red')
 
 
 if __name__ == "__main__":

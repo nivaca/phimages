@@ -70,3 +70,4 @@ Please create a GitHub [issue](https://github.com/nivaca/phimages/issues), inclu
 ## Version history
 
 - 0.1 (2021-10-04): first release
+- 0.2 (2021-10-06): fixed name checking algorithm
