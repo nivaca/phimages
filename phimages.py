@@ -208,9 +208,6 @@ def check_reference_names(params: dict) -> bool:
             egfname = params["lesson_name"] + "03.png"
             click.secho(f"  Reference to ‘{fn}’ in lesson document "
                         f"does *not* comply with required pattern.", fg='red')
-            if params["checkonly"]:
-                click.secho("  See https://programminghistorian.org/en/author-guidelines.html#figures-and-images "
-                            "for more information.", fg='red')
             errors += 1
             result = False
     if not result:
