@@ -308,7 +308,7 @@ def main(inputfile: str, imgdir: str, dryrun: bool, mkbkp: bool, checkonly: bool
     mdfn, mdfn_ext = os.path.splitext(inputfile)
     if mdfn_ext.lower() != '.md':
         click.secho(f'Error: input file (‘{inputfile}’) must have ‘.md’ extension.', fg='red')
-        sys.exit(0)
+        sys.exit(1)
 
     baseinputfile = os.path.basename(inputfile)  # remove path
     lesson_name = os.path.splitext(baseinputfile)[0]  # remove extension
